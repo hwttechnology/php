@@ -22,6 +22,19 @@ function toArray($val)
 }
 
 /**
+ * 强制转换为数组，且为每个元素加上引号
+ */
+function toQuoteArray($val, $quote = "'")
+{
+    $val = toArray($val);
+    foreach ($val as &$item) {
+        $item = $quote . $item . $quote;
+    }
+    return $val;
+}
+
+
+/**
  * 检测参数是否都有设置
  */
 function AnyEmpty()
@@ -186,21 +199,26 @@ function httpPost($url, $data, $type = "xml", $headers = array())
  */
 function GetMobileSP($imsi)
 {
+    $mobile = array(
+        "46000" => 1,
+        "46002" => 1,
+        "46007" => 1,
+        "46020" => 1,
+        "46008" => 1,
+        "46060" => 1,
+        "46001" => 2,
+        "46006" => 2,
+        "46010" => 2,
+        "46003" => 3,
+        "46005" => 3,
+        "46011" => 3,
+    );
     if (empty($imsi)) {
         return  0;
     }
     $code = substr($imsi, 0, 5);
-    if ($code == "46000" || $code == "46002" || $code == "46007" || $code == "46020" || $code == "46008" || $code == "46060") {
-        //中国移动
-        return 1;
-    }
-    if ($code == "46001" || $code == "46006" || $code == "46010") {
-        //中国联通
-        return 2;
-    }
-    if ($code == "46003" || $code == "46005" || $code == "46011")  {
-        //中国电信
-        return 3;
+    if (array_key_exists($code, $mobile)) {
+        return $mobile[$code];
     }
     return 0;
 }
@@ -324,6 +342,172 @@ function param_filter($param, $keyset)
         $result[$key] = isset($param[$key]) ? $param[$key] : "";
     }
     return $result;
+}
+
+/**
+ * 验证签名
+ * @author 支付宝
+ * @param string $prestr 需要签名的字符串
+ * @param string $key 私钥
+ * @param string $sign 签名结果
+ * @return 签名结果
+ */
+function md5Verify($prestr, $key, $sign)
+{
+    $prestr = $prestr . $key;
+    $mysgin = md5($prestr);
+
+    return ($mysgin == $sign);
+}
+
+/**
+ * 签名字符串
+ * @author 支付宝
+ * @param string $prestr 需要签名的字符串
+ * @param string $key 私钥
+ * @return string 签名结果
+ */
+function md5Sign($prestr, $key)
+{
+    $prestr = $prestr . $key;
+    return md5($prestr);
+}
+
+/**
+ * 实现多种字符编码方式
+ * @author 支付宝
+ * @param $input 需要编码的字符串
+ * @param $_output_charset 输出的编码格式
+ * @param $_input_charset 输入的编码格式
+ * return 编码后的字符串
+ */
+function charsetEncode($input,$_output_charset ,$_input_charset) {
+    $output = "";
+    if(!isset($_output_charset) )$_output_charset  = $_input_charset;
+    if($_input_charset == $_output_charset || $input ==null ) {
+        $output = $input;
+    } elseif (function_exists("mb_convert_encoding")) {
+        $output = mb_convert_encoding($input,$_output_charset,$_input_charset);
+    } elseif(function_exists("iconv")) {
+        $output = iconv($_input_charset,$_output_charset,$input);
+    } else die("sorry, you have no libs support for charset change.");
+    return $output;
+}
+/**
+ * 实现多种字符解码方式
+ * @author 支付宝
+ * @param $input 需要解码的字符串
+ * @param $_output_charset 输出的解码格式
+ * @param $_input_charset 输入的解码格式
+ * return 解码后的字符串
+ */
+function charsetDecode($input,$_input_charset ,$_output_charset)
+{
+    $output = "";
+    if (! isset($_input_charset)) {
+        $_input_charset = $_input_charset;
+    }
+
+    if ($_input_charset == $_output_charset || $input ==null) {
+        $output = $input;
+    }
+    elseif (function_exists("mb_convert_encoding")) {
+        $output = mb_convert_encoding($input, $_output_charset, $_input_charset);
+    }
+    elseif(function_exists("iconv")) {
+        $output = iconv($_input_charset, $_output_charset, $input);
+    }
+    else {
+        die("sorry, you have no libs support for charset changes.");
+    }
+    return $output;
+}
+
+/**
+ * 把数组所有元素，按照“参数=参数值”的模式用“&”字符拼接成字符串
+ * @param $para 需要拼接的数组
+ * return 拼接完成以后的字符串
+ */
+function createLinkStr($param, $connect = "&", $equal = "=")
+{
+    $arg  = "";
+    while (list($key, $val) = each($param)) {
+        $arg .= $key . $equal . $val . $connect;
+    }
+    // 去掉最后一个&字符
+    $arg = substr($arg, 0, -1);
+    // 如果存在转义字符，那么去掉转义
+    if (get_magic_quotes_gpc()) {
+        $arg = stripslashes($arg);
+    }
+    return $arg;
+}
+
+/**
+ * 检测是否有多字节字符
+ * @author phpmailer
+ * @param string $str 待检测字符串
+ * @return boolean
+ */
+function hasMultiBytes($str)
+{
+    if (function_exists('mb_strlen')) {
+        return strlen($str) > mb_strlen($str);
+    } else {
+        // Assume no multibytes (we can't handle without mbstring functions anyway)
+        return false;
+    }
+}
+
+/**
+ * 返回rfc822格式日期
+ * @author phpmailer
+ * @return string
+ */
+function rfcDate()
+{
+    //Set the time zone to whatever the default is to avoid 500 errors
+    //Will default to UTC if it's not set properly in php.ini
+    date_default_timezone_set(@date_default_timezone_get());
+    return date('D, j M Y H:i:s O');
+}
+
+
+/**
+ * 获取服务器的主机名
+ * Returns 'localhost.localdomain' if unknown.
+ * @return string
+ */
+function serverHostname()
+{
+    $result = 'localhost.localdomain';
+    if (
+        isset($_SERVER) &&
+        array_key_exists('SERVER_NAME', $_SERVER) &&
+        ! empty($_SERVER['SERVER_NAME'])
+    ) {
+        $result = $_SERVER['SERVER_NAME'];
+    } elseif (gethostname() !== false) {
+        $result = gethostname();
+    }
+    return $result;
+}
+
+/**
+ * 把Null都替换为空字符串
+ * @param array $arr
+ * @return array
+ */
+function noNullArray ($arr)
+{
+    foreach ($arr as &$v)
+    {
+        if (null === $v)
+        {
+            $v = '';
+        }
+    }
+    return $arr;
 }
 
 
